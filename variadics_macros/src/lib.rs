@@ -1,6 +1,8 @@
 #![feature(proc_macro_diagnostic)]
+#![feature(proc_macro_span)]
 
 mod variadic;
+mod variadic2;
 mod variadic_fn;
 mod variadic_trait;
 
@@ -39,6 +41,11 @@ pub fn ignore(_input: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn variadic(input: TokenStream) -> TokenStream {
     variadic::variadic(input)
+}
+
+#[proc_macro]
+pub fn variadic2(input: TokenStream) -> TokenStream {
+    variadic2::variadic(input)
 }
 
 #[proc_macro]

@@ -1,7 +1,7 @@
 use sealed::sealed;
 
 pub use variadics_macros::*;
-use variadics_macros::variadic as v;
+use variadics_macros::variadic2 as v;
 
 #[sealed]
 pub trait Variadic {}
@@ -9,6 +9,37 @@ pub trait Variadic {}
 impl Variadic for v!() {}
 #[sealed]
 impl<X, Rest> Variadic for v!(X, ...Rest) where Rest: Variadic {}
+
+#[sealed]
+pub trait Extend<Suffix>
+where
+    Suffix: Variadic,
+{
+    type Extended: Variadic;
+    fn extend(self, input: Suffix) -> Self::Extended;
+}
+#[sealed]
+impl<Suffix> Extend<Suffix> for v!()
+where
+    Suffix: Variadic,
+{
+    type Extended = Suffix;
+    fn extend(self, suffix: Suffix) -> Self::Extended {
+        suffix
+    }
+}
+#[sealed]
+impl<Item, Rest, Suffix> Extend<Suffix> for v!(Item, ...Rest)
+where
+    Rest: Extend<Suffix>,
+    Suffix: Variadic,
+{
+    type Extended = v!(Item, ...Rest::Extended);
+    fn extend(self, suffix: Suffix) -> Self::Extended {
+        let v!(item, ...rest) = self;
+        v!(item, ...rest.extend(suffix))
+    }
+}
 
 // #[sealed]
 pub trait VariadicAsRef<'a>: 'a + Variadic {

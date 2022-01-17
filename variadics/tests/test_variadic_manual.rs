@@ -1,4 +1,4 @@
-use variadics::{variadic as v, ignore, Variadic};
+use variadics::{ignore, variadic as v, Variadic};
 
 pub trait ZipIters {
     type Item: Variadic;
