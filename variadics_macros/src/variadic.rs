@@ -1,60 +1,96 @@
+use std::iter::Peekable;
+
 use proc_macro::TokenStream;
+use proc_macro2::{TokenStream as TokenStream2, TokenTree};
 use quote::{quote, ToTokens};
 use syn::parse::Parse;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{parse_macro_input, Expr, Token, Type};
+use syn::{parse_macro_input, Token, parse_quote_spanned};
 
-#[derive(Debug)]
-enum TypeOrExpr {
-    Type(Type),
-    Expr(Expr),
+pub(crate) struct AmbigItem {
+    token_stream: TokenStream2,
 }
-impl Parse for TypeOrExpr {
+impl Parse for AmbigItem {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        use syn::parse::discouraged::Speculative;
+        input.step(|cursor| {
+            let mut token_stream = TokenStream2::default();
 
-        let fork = input.fork();
-        if let Ok(ty) = fork.parse() {
-            input.advance_to(&fork);
-            Ok(TypeOrExpr::Type(ty))
-        } else {
-            Ok(TypeOrExpr::Expr(input.parse()?))
-        }
+            let mut depth: i32 = 0;
+            let mut prev = *cursor;
+            while let Some((tt, next)) = prev.token_tree() {
+                if let TokenTree::Punct(punct) = &tt {
+                    match punct.as_char() {
+                        ',' => {
+                            if depth <= 0 {
+                                break;
+                            }
+                        }
+                        '<' => {
+                            depth += 1;
+                        }
+                        '>' => {
+                            depth -= 1;
+                            if depth < 0 {
+                                punct.span().unwrap().error(
+                                    "Expressions with `<` or `>` must be put in parenthesis `( ... )` or braces `{ ... }` to avoid ambiguity.",
+                                );
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                token_stream.extend([tt]);
+
+                prev = next;
+            }
+            Ok((Self { token_stream }, prev))
+        })
     }
 }
-impl ToTokens for TypeOrExpr {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        match self {
-            Self::Type(ty) => ty.to_tokens(tokens),
-            Self::Expr(expr) => expr.to_tokens(tokens),
-        }
+impl ToTokens for AmbigItem {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        tokens.extend(self.token_stream.clone());
     }
 }
 
-#[derive(Debug)]
-struct SpreadTypeOrExpr {
+pub(crate) struct SpreadItem<Item>
+where
+    Item: Parse + ToTokens,
+{
     pub spread_token: Option<Token![...]>,
-    pub elem: TypeOrExpr,
+    pub elem: Item,
 }
-impl Parse for SpreadTypeOrExpr {
+impl<Item> Parse for SpreadItem<Item>
+where
+    Item: Parse + ToTokens,
+{
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let spread_token = input.parse()?;
         let elem = input.parse()?;
         Ok(Self { spread_token, elem })
     }
 }
-impl ToTokens for SpreadTypeOrExpr {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+impl<Item> ToTokens for SpreadItem<Item>
+where
+    Item: Parse + ToTokens,
+{
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
         self.spread_token.to_tokens(tokens);
         self.elem.to_tokens(tokens)
     }
 }
 
-struct VariadicList {
-    pub elems: Punctuated<SpreadTypeOrExpr, Token![,]>,
+pub(crate) struct VariadicList<Item>
+where
+    Item: Parse + ToTokens,
+{
+    pub elems: Punctuated<SpreadItem<Item>, Token![,]>,
 }
-impl Parse for VariadicList {
+impl<Item> Parse for VariadicList<Item>
+where
+    Item: Parse + ToTokens,
+{
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let mut elems = Punctuated::new();
         while !input.is_empty() {
@@ -67,23 +103,42 @@ impl Parse for VariadicList {
         Ok(Self { elems })
     }
 }
-impl ToTokens for VariadicList {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+impl<Item> ToTokens for VariadicList<Item>
+where
+    Item: Parse + ToTokens,
+{
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
         self.elems.to_tokens(tokens)
     }
 }
-impl VariadicList {
-    pub fn into_const_tuple(self) -> proc_macro2::TokenStream {
-        fn helper(mut iter: impl Iterator<Item = SpreadTypeOrExpr>) -> proc_macro2::TokenStream {
+impl<Item> VariadicList<Item>
+where
+    Item: Parse + ToTokens,
+{
+    pub fn into_const_tuple(self) -> TokenStream2 {
+        fn helper<Item>(mut iter: Peekable<impl Iterator<Item = SpreadItem<Item>>>) -> TokenStream2
+        where
+            Item: Parse + ToTokens,
+        {
             match iter.next() {
                 Some(item) => {
                     if let Some(spread_token) = item.spread_token {
-                        if iter.next().is_some() {
-                            spread_token
-                                .span()
-                                .unwrap()
-                                .error("Spread elements are only supported as the last element in a variadic tuple type.")
-                                .emit();
+                        if iter.peek().is_some() {
+                            if cfg!(feature = "complex-spread-syntax") {
+                                let recurse = helper(iter);
+
+                                let span = spread_token.span();
+                                let extend = super::get_crate_path(parse_quote_spanned!(span=> Extend::extend), span);
+                                let item_elem = item.elem;
+                                return quote! { #extend(#item_elem, #recurse) };
+                            }
+                            else {
+                                spread_token
+                                    .span()
+                                    .unwrap()
+                                    .error("Spread (`...`) is only supported on the last element of a variadic tuple type unless the `complex-spread-syntax` feature is enabled.")
+                                    .emit();
+                            }
                         }
                         item.elem.into_token_stream()
                     } else {
@@ -96,12 +151,14 @@ impl VariadicList {
                 }
             }
         }
-        helper(self.elems.into_iter())
+        helper(self.elems.into_iter().peekable())
     }
 }
 
-pub(crate) fn variadic(input: TokenStream) -> TokenStream {
-    let item = parse_macro_input!(input as VariadicList);
-
+pub(crate) fn variadic<Item>(input: TokenStream) -> TokenStream
+where
+    Item: Parse + ToTokens,
+{
+    let item = parse_macro_input!(input as VariadicList<Item>);
     item.into_const_tuple().into()
 }

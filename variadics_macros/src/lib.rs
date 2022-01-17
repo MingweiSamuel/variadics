@@ -2,14 +2,14 @@
 #![feature(proc_macro_span)]
 
 mod variadic;
-mod variadic2;
 mod variadic_fn;
 mod variadic_trait;
 
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use proc_macro_crate::{crate_name, FoundCrate};
-use syn::{Path, PathArguments, PathSegment};
+use syn::{Expr, Path, PathArguments, PathSegment, Type};
+use variadic::AmbigItem;
 
 fn get_crate_path(item: Path, span: Span) -> Path {
     let found_crate = crate_name("variadics").expect("variadics should be present in `Cargo.toml`");
@@ -39,13 +39,17 @@ pub fn ignore(_input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
-pub fn variadic(input: TokenStream) -> TokenStream {
-    variadic::variadic(input)
+pub fn variadic_expr(input: TokenStream) -> TokenStream {
+    variadic::variadic::<Expr>(input)
+}
+#[proc_macro]
+pub fn variadic_type(input: TokenStream) -> TokenStream {
+    variadic::variadic::<Type>(input)
 }
 
 #[proc_macro]
-pub fn variadic2(input: TokenStream) -> TokenStream {
-    variadic2::variadic(input)
+pub fn variadic(input: TokenStream) -> TokenStream {
+    variadic::variadic::<AmbigItem>(input)
 }
 
 #[proc_macro]

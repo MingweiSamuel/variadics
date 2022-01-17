@@ -10,7 +10,8 @@ license = "MIT"
 keywords = []
 categories = []
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+complex-spread-syntax = [ "variadics_macros/complex-spread-syntax" ]
 
 [dependencies]
 variadics_macros = { path = "../variadics_macros" }

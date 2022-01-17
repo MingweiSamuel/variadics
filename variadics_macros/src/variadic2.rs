@@ -85,8 +85,7 @@ pub(crate) fn variadic(input: TokenStream) -> TokenStream {
                 if let Some(spread_span) = spread_span {
                     if iter.peek().is_none() {
                         stream
-                    }
-                    else {
+                    } else {
                         spread_span
                             .error("Spread elements are only supported in the final position of a variadic tuple type.")
                             .emit();

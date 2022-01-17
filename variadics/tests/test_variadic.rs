@@ -1,4 +1,4 @@
-use variadics::variadic2 as v;
+use variadics::variadic as v;
 
 #[test]
 fn test_variadic() {
@@ -28,8 +28,7 @@ fn test_variadic_spread() {
 #[test]
 fn test_turbofish_bastion() {
     let (the, guardian, stands, resolute) = ("the", "Turbofish", "remains", "undefeated");
-    let x = v!(the < guardian, stands > (resolute));
+    let _x = v!(the < guardian, stands > (resolute)); // INVALID!
 
-    use std::collections::HashMap;
-    type Y = v!(HashMap<usize, usize>);
+    type _T = v!(std::collections::HashMap<usize, usize>);
 }

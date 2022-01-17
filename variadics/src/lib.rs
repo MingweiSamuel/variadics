@@ -1,7 +1,7 @@
 use sealed::sealed;
 
+use variadics_macros::variadic as v;
 pub use variadics_macros::*;
-use variadics_macros::variadic2 as v;
 
 #[sealed]
 pub trait Variadic {}
@@ -56,7 +56,10 @@ impl<'a> VariadicAsRef<'a> for v!() {
     }
 }
 // #[sealed]
-impl<'a, X: 'a, Rest> VariadicAsRef<'a> for v!(X, ...Rest) where Rest: VariadicAsRef<'a> {
+impl<'a, X: 'a, Rest> VariadicAsRef<'a> for v!(X, ...Rest)
+where
+    Rest: VariadicAsRef<'a>,
+{
     type Output = v!(&'a X, ...Rest::Output);
 
     fn as_ref(&'a self) -> Self::Output {

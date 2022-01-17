@@ -13,11 +13,12 @@ categories = []
 [lib]
 proc-macro = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+complex-spread-syntax = []
 
 [dependencies]
 itertools = "0.10"
 proc-macro2 = "1.0"
 proc-macro-crate = "1.1"
 quote = "1.0"
-syn = { git = "https://github.com/MingweiSamuel/syn", rev = "56d2f6269d020fdda6b14bb4980593750582a54e", features = [ "full", "extra-traits", "fold" ] }
+syn = { version = "1.0", features = [ "full", "extra-traits", "fold" ] }
