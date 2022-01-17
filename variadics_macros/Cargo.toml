@@ -1,0 +1,22 @@
+[package]
+name = "variadics_macros"
+version = "0.0.0"
+edition = "2021"
+authors = ["Mingwei Samuel <mingwei.samuel@gmail.com>"]
+repository = "https://github.com/MingweiSamuel/variadics"
+description = "Variadic generics (WIP)"
+readme = "..README.md"
+license = "MIT"
+keywords = []
+categories = []
+
+[lib]
+proc-macro = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+proc-macro2 = "1.0"
+proc-macro-crate = "1.1"
+quote = "1.0"
+syn = { git = "https://github.com/MingweiSamuel/syn", rev = "56d2f6269d020fdda6b14bb4980593750582a54e", features = [ "full", "extra-traits", "fold" ] }
