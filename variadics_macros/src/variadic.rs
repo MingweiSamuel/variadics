@@ -6,7 +6,9 @@ use quote::{quote, ToTokens};
 use syn::parse::Parse;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{parse_macro_input, Token, parse_quote_spanned};
+use syn::{parse_macro_input, Token};
+
+use crate::ParseContext;
 
 pub(crate) struct AmbigItem {
     token_stream: TokenStream2,
@@ -115,8 +117,8 @@ impl<Item> VariadicList<Item>
 where
     Item: Parse + ToTokens,
 {
-    pub fn into_const_tuple(self) -> TokenStream2 {
-        fn helper<Item>(mut iter: Peekable<impl Iterator<Item = SpreadItem<Item>>>) -> TokenStream2
+    pub fn into_const_tuple(self, type_context: ParseContext) -> TokenStream2 {
+        fn helper<Item>(mut iter: Peekable<impl Iterator<Item = SpreadItem<Item>>>, type_context: ParseContext) -> TokenStream2
         where
             Item: Parse + ToTokens,
         {
@@ -125,12 +127,14 @@ where
                     if let Some(spread_token) = item.spread_token {
                         if iter.peek().is_some() {
                             if cfg!(feature = "complex-spread-syntax") {
-                                let recurse = helper(iter);
+                                let recurse = helper(iter, type_context);
 
-                                let span = spread_token.span();
-                                let extend = super::get_crate_path(parse_quote_spanned!(span=> Extend::extend), span);
+                                let crate_path = super::get_crate_path(spread_token.span());
                                 let item_elem = item.elem;
-                                return quote! { #extend(#item_elem, #recurse) };
+                                return match &type_context {
+                                    ParseContext::Type => quote! { < #item_elem as #crate_path ::Extend< #recurse >>::Extended },
+                                    ParseContext::Expr => quote! { #crate_path ::Extend::extend (#item_elem, #recurse) },
+                                };
                             }
                             else {
                                 spread_token
@@ -142,7 +146,7 @@ where
                         }
                         item.elem.into_token_stream()
                     } else {
-                        let recurse = helper(iter);
+                        let recurse = helper(iter, type_context);
                         quote! { (#item, #recurse) }
                     }
                 }
@@ -151,14 +155,14 @@ where
                 }
             }
         }
-        helper(self.elems.into_iter().peekable())
+        helper(self.elems.into_iter().peekable(), type_context)
     }
 }
 
-pub(crate) fn variadic<Item>(input: TokenStream) -> TokenStream
+pub(crate) fn variadic<Item>(input: TokenStream, type_context: Option<ParseContext>) -> TokenStream
 where
     Item: Parse + ToTokens,
 {
     let item = parse_macro_input!(input as VariadicList<Item>);
-    item.into_const_tuple().into()
+    item.into_const_tuple(type_context.unwrap()).into()
 }

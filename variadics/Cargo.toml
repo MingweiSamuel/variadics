@@ -11,6 +11,7 @@ keywords = []
 categories = []
 
 [features]
+# Allows spread syntax outside of the last position: `v!(a, ...bs, ...cs, d, ..es)`.
 complex-spread-syntax = [ "variadics_macros/complex-spread-syntax" ]
 
 [dependencies]

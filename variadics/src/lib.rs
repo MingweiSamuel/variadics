@@ -64,8 +64,7 @@ where
 
     fn as_ref(&'a self) -> Self::Output {
         let v!(this, ...rest) = self;
-        let rest = rest.as_ref();
-        v!(this, ...rest)
+        v!(this, ...rest.as_ref())
     }
 }
 
